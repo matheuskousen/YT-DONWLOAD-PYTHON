@@ -1,0 +1,44 @@
+# Documentação e Ajuda - YouTube Downloader
+
+# Sobre o Programa
+
+O YouTube Downloader é uma aplicação simples que permite baixar vídeos do YouTube e convertê-los em arquivos de áudio MP3. Com esta ferramenta, você pode salvar seus vídeos favoritos do YouTube como arquivos de áudio para ouvir em qualquer lugar, a qualquer momento.
+
+# Como Usar
+
+1. Inicialização do Programa
+
+Ao iniciar o programa, você será apresentado a uma interface simples com várias caixas de entrada e botões.
+
+2. Adicionando URLs dos Vídeos
+Na seção "URL do vídeo X", insira o URL do vídeo do YouTube que deseja baixar. Você pode adicionar até 10 URLs de uma só vez.
+Certifique-se de incluir o URL completo do vídeo, incluindo o protocolo "https://".
+
+3. Selecionando a Pasta de Destino
+Clique no botão "Escolher Pasta" ao lado da caixa "Pasta de destino" para selecionar a pasta onde deseja salvar os vídeos baixados.
+
+4. Opções de Download
+Selecione a caixa "Baixar e Converter para MP3" se deseja que os vídeos sejam automaticamente convertidos em arquivos de áudio MP3 após o download.
+
+5. Iniciando os Downloads
+Depois de inserir os URLs dos vídeos e selecionar a pasta de destino, clique no botão "Baixar Todos" para iniciar os downloads.
+O status dos downloads será exibido na parte inferior da interface.
+
+# Solução de Problemas Comuns
+Problema: Erro ao Baixar o Vídeo
+
+## Causa: Pode haver problemas de conexão com a internet ou o URL do vídeo pode estar incorreto.
+Solução: Verifique sua conexão com a internet e certifique-se de que o URL do vídeo esteja correto e completo.
+Problema: Erro ao Converter para MP3
+Causa: Pode haver problemas com o processo de conversão de vídeo para áudio.
+Solução: Verifique se o vídeo está sendo baixado corretamente e se há espaço suficiente no disco. Tente novamente após reiniciar o programa.
+Problema: Interface Congelada ou Não Responsiva
+Causa: O programa pode estar sobrecarregado devido a muitos downloads simultâneos ou arquivos de vídeo grandes.
+Solução: Feche o programa e reinicie-o. Evite baixar muitos vídeos simultaneamente.
+Problema: Erro ao Selecionar a Pasta de Destino
+Causa: Você pode ter selecionado uma pasta inválida ou não tem permissão para gravar na pasta selecionada.
+Solução: Verifique se a pasta selecionada é acessível e se você tem permissão para gravar nela. Tente selecionar outra pasta.
+Dicas Adicionais
+Certifique-se sempre de respeitar os direitos autorais ao baixar e usar conteúdo do YouTube.
+Mantenha o programa atualizado para acessar as últimas correções de erros e melhorias.
+Esperamos que este guia tenha sido útil para você. Se você ainda tiver problemas ou dúvidas, não hesite em entrar em contato conosco.
