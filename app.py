@@ -1,101 +1,224 @@
+import yt_dlp as youtube_dl
+from moviepy.editor import *
 import tkinter as tk
-from tkinter import filedialog, messagebox
-from pytube import YouTube
-from moviepy.editor import AudioFileClip
-import threading
+from tkinter import filedialog, messagebox, ttk, scrolledtext
 import os
+import re
+import threading
+import winsound
+from urllib.parse import urlparse
+import clipboard  # Para acessar a área de transferência
+import json
 
-class DownloadManager:
-    def __init__(self):
-        self.download_threads = []
+# Função para limpar nomes de arquivos
+def clean_filename(filename):
+    return re.sub(r'[<>:"/\\|?*]', '', filename)
 
-    def add_download(self, url, destination, convert_to_audio):
-        thread = threading.Thread(target=self.download_audio, args=(url, destination, convert_to_audio))
-        self.download_threads.append(thread)
-        thread.start()
+# Função para validar URLs
+def is_valid_url(url):
+    parsed = urlparse(url)
+    return all([parsed.scheme, parsed.netloc])
 
-    def download_audio(self, url, destination, convert_to_audio):
-        try:
-            yt = YouTube(url)
-            stream = yt.streams.filter(only_audio=True).first()
-            audio_path = stream.download(output_path=destination)
-            if convert_to_audio:
-                audio_path = self.convert_to_mp3(audio_path)
-            else:
-                # Renomeia o arquivo de áudio com extensão .mp3
-                mp3_path = os.path.splitext(audio_path)[0] + ".mp3"
-                os.rename(audio_path, mp3_path)
-            messagebox.showinfo("Concluído", "Download e conversão concluídos com sucesso!")
-        except Exception as e:
-            messagebox.showerror("Erro", f"Ocorreu um erro ao baixar o áudio: {str(e)}")
+# Função para verificar disponibilidade do vídeo
+def check_video_availability(url):
+    try:
+        with youtube_dl.YoutubeDL({'quiet': True, 'noplaylist': True}) as ydl:
+            ydl.extract_info(url, download=False)
+        return True
+    except Exception:
+        return False
 
-    def convert_to_mp3(self, audio_path):
-        # Gera o caminho para o arquivo de áudio convertido para MP3
-        mp3_path = os.path.splitext(audio_path)[0] + ".mp3"
-        # Carrega o arquivo de áudio
-        audio_clip = AudioFileClip(audio_path)
-        # Salva o arquivo de áudio como MP3
+# Função para carregar configurações do usuário
+def load_user_settings():
+    try:
+        with open("user_settings.json", "r") as file:
+            return json.load(file)
+    except FileNotFoundError:
+        return {"last_save_directory": "", "quality": "high"}
+
+# Função para salvar configurações do usuário
+def save_user_settings(settings):
+    with open("user_settings.json", "w") as file:
+        json.dump(settings, file)
+
+# Função para baixar e converter vídeos
+def download_video(url, save_directory, quality, progress_var, index, status_labels, retry=0):
+    try:
+        ydl_opts = {
+            'format': f'bestaudio[ext=webm]/bestaudio/best' if quality == "high" else ('worstaudio[ext=webm]/worstaudio' if quality == "low" else 'bestaudio[ext=webm]/bestaudio'),
+            'outtmpl': os.path.join(save_directory, 'temp_audio.%(ext)s'),
+            'noplaylist': True,
+            'quiet': True,
+            'no_warnings': True,
+        }
+
+        with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+            info_dict = ydl.extract_info(url, download=True)
+            video_title = info_dict.get('title', None)
+
+        safe_title = clean_filename(video_title)
+        mp3_path = os.path.join(save_directory, f"{safe_title}.mp3")
+
+        audio_clip = AudioFileClip(os.path.join(save_directory, "temp_audio.webm"))
         audio_clip.write_audiofile(mp3_path)
         audio_clip.close()
-        # Remove o arquivo de áudio original
-        os.remove(audio_path)
-        return mp3_path
 
-def choose_directory():
-    directory = filedialog.askdirectory()
-    destination_path.set(directory)
+        os.remove(os.path.join(save_directory, "temp_audio.webm"))
 
-def download_all():
-    urls = [url_entry.get() for url_entry in url_entries]
-    destination = destination_path.get()
-    convert_to_audio = audio_option_var.get()
-    if not destination:
-        messagebox.showerror("Erro", "Selecione uma pasta de destino!")
+        progress_var.set(progress_var.get() + 1)
+        status_labels[index].config(text="✔️ Sucesso", foreground="green")
+        return f"Download e conversão concluídos para: {mp3_path}"
+    except Exception as e:
+        if retry < 3:
+            return download_video(url, save_directory, quality, progress_var, index, status_labels, retry=retry+1)
+        progress_var.set(progress_var.get() + 1)
+        status_labels[index].config(text="❌ Erro", foreground="red")
+        log_error(f"Erro ao processar {url}: {e}")
+        return f"Erro ao processar {url}: {e}"
+
+# Função para executar downloads em threads
+def download_videos():
+    save_directory = filedialog.askdirectory(initialdir=user_settings["last_save_directory"], title="Selecione o diretório para salvar os arquivos MP3")
+    if not save_directory:
+        messagebox.showerror("Erro", "Por favor, selecione um diretório para salvar os arquivos.")
         return
-    for url in urls:
-        if url.strip():
-            download_manager.add_download(url.strip(), destination, convert_to_audio)
-    status_label.config(text="Downloads iniciados!")
 
-# Criando a interface
+    # Atualiza as configurações do usuário com o diretório de download atual
+    user_settings["last_save_directory"] = save_directory
+    save_user_settings(user_settings)
+
+    urls = [entry.get().strip() for entry in url_entries if entry.get().strip()]
+    if not urls:
+        messagebox.showwarning("Aviso", "Nenhum URL foi inserido.")
+        return
+
+    invalid_urls = [url for url in urls if not is_valid_url(url) or not check_video_availability(url)]
+    if invalid_urls:
+        messagebox.showerror("Erro", f"URLs inválidas ou indisponíveis:\n{', '.join(invalid_urls)}")
+        return
+
+    progress_var.set(0)
+    progress_bar["maximum"] = len(urls)
+    
+    results = []
+    
+    def run_downloads():
+        for index, url in enumerate(urls):
+            result = download_video(url, save_directory, user_settings["quality"], progress_var, index, status_labels)
+            results.append(result)
+        
+        winsound.Beep(1000, 500)  # Sinaliza finalização
+        messagebox.showinfo("Resultados", "\n".join(results))
+    
+    threading.Thread(target=run_downloads).start()
+
+# Função para limpar campos
+def clear_fields():
+    for entry in url_entries:
+        entry.delete(0, tk.END)
+    for label in status_labels:
+        label.config(text="")
+
+# Função para colar múltiplas URLs
+def paste_urls():
+    clipboard_content = clipboard.paste().split()
+    for i, url in enumerate(clipboard_content[:5]):
+        url_entries[i].insert(0, url)
+
+# Função para log de erros
+def log_error(message):
+    with open("error_log.txt", "a") as log_file:
+        log_file.write(f"{message}\n")
+
+# Função para ajustar a qualidade do áudio
+def set_quality(value):
+    user_settings["quality"] = value
+    save_user_settings(user_settings)
+
+# Carregar configurações do usuário
+user_settings = load_user_settings()
+
+# Interface Gráfica com Tkinter
 root = tk.Tk()
-root.title("YouTube Downloader")
+root.title("YouTube para MP3")
+root.geometry("900x750")
 
-# Criando os widgets
+# Aplicar tema moderno
+style = ttk.Style()
+style.theme_use('clam')
+
+# Frame principal com barra de rolagem
+main_frame = tk.Frame(root)
+main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+canvas = tk.Canvas(main_frame)
+scrollbar = ttk.Scrollbar(main_frame, orient="vertical", command=canvas.yview)
+scrollable_frame = ttk.Frame(canvas)
+
+scrollable_frame.bind(
+    "<Configure>",
+    lambda e: canvas.configure(
+        scrollregion=canvas.bbox("all")
+    )
+)
+
+canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+canvas.configure(yscrollcommand=scrollbar.set)
+
+canvas.pack(side="left", fill="both", expand=True)
+scrollbar.pack(side="right", fill="y")
+
+# Lista para armazenar os campos de entrada de URL e status
 url_entries = []
+status_labels = []
 
-for i in range(10):
-    url_label = tk.Label(root, text=f"URL do vídeo {i + 1}:")
-    url_label.grid(row=i, column=0, sticky="w", padx=(10, 5), pady=5)
+# Adiciona 5 campos de entrada no frame rolável
+for i in range(5):
+    row_frame = tk.Frame(scrollable_frame)
+    row_frame.pack(pady=5, anchor='w')
+    
+    tk.Label(row_frame, text=f"URL do vídeo {i+1}:").pack(side=tk.LEFT, padx=5)
+    entry = tk.Entry(row_frame, width=60)
+    entry.pack(side=tk.LEFT, padx=5)
+    url_entries.append(entry)
+    
+    status_label = tk.Label(row_frame, text="", width=10)
+    status_label.pack(side=tk.LEFT, padx=5)
+    status_labels.append(status_label)
 
-    url_entry = tk.Entry(root, width=50)
-    url_entry.grid(row=i, column=1, padx=(0, 10), pady=5)
-    url_entries.append(url_entry)
+# Barra de progresso
+progress_var = tk.IntVar()
+progress_bar = ttk.Progressbar(root, variable=progress_var, maximum=5)
+progress_bar.pack(pady=20, padx=10, fill=tk.X)
 
-destination_frame = tk.Frame(root)
-destination_frame.grid(row=10, column=0, columnspan=2, pady=(10,0), padx=10, sticky="ew")
+# Frame para configurações
+settings_frame = tk.LabelFrame(root, text="Configurações", padx=10, pady=10)
+settings_frame.pack(padx=10, pady=10)
 
-destination_label = tk.Label(destination_frame, text="Pasta de destino:")
-destination_label.pack(side="left")
+quality_label = tk.Label(settings_frame, text="Qualidade de Áudio:")
+quality_label.pack(side=tk.LEFT)
 
-destination_path = tk.StringVar()
-destination_entry = tk.Entry(destination_frame, textvariable=destination_path, width=40)
-destination_entry.pack(side="left", padx=(5,0))
+quality_options = ["high", "medium", "low"]
+quality_combobox = ttk.Combobox(settings_frame, values=quality_options)
+quality_combobox.set(user_settings["quality"])
+quality_combobox.pack(side=tk.LEFT, padx=10)
+quality_combobox.bind("<<ComboboxSelected>>", lambda event: set_quality(quality_combobox.get()))
 
-choose_directory_button = tk.Button(destination_frame, text="Escolher Pasta", command=choose_directory)
-choose_directory_button.pack(side="left", padx=(5,0))
+# Botões de controle
+button_frame = tk.Frame(root)
+button_frame.pack(pady=10)
 
-audio_option_var = tk.BooleanVar()
-audio_option_checkbox = tk.Checkbutton(root, text="Baixar e Converter para MP3", variable=audio_option_var)
-audio_option_checkbox.grid(row=11, column=0, columnspan=2, pady=5)
+download_button = tk.Button(button_frame, text="Baixar e Converter", command=download_videos)
+download_button.grid(row=0, column=0, padx=5)
 
-download_all_button = tk.Button(root, text="Baixar Todos", command=download_all, width=20)
-download_all_button.grid(row=12, column=0, columnspan=2, pady=(0, 10))
+paste_button = tk.Button(button_frame, text="Colar URLs", command=paste_urls)
+paste_button.grid(row=0, column=1, padx=5)
 
-status_label = tk.Label(root, text="", fg="green")
-status_label.grid(row=13, column=0, columnspan=2, pady=(0, 10))
+clear_button = tk.Button(button_frame, text="Limpar Campos", command=clear_fields)
+clear_button.grid(row=0, column=2, padx=5)
 
-download_manager = DownloadManager()
+exit_button = tk.Button(button_frame, text="Sair", command=root.quit)
+exit_button.grid(row=0, column=3, padx=5)
 
-# Iniciando o loop da interface
+# Inicia o loop da interface
 root.mainloop()

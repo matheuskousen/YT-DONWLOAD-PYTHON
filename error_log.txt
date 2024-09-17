@@ -1,0 +1,2 @@
+Erro ao processar https://www.youtube.com/watch?v=hzOI__iGL8g: [WinError 32] O arquivo já está sendo usado por outro processo: 'C:/Users/mathe/Desktop/JS-DJ/7/FUNKS/SETEMBRO\\temp_audio.webm'
+Erro ao processar https://www.youtube.com/watch?v=Ahr9n7xjNDg: [WinError 32] O arquivo já está sendo usado por outro processo: 'C:/Users/mathe/Desktop/JS-DJ/7/FUNKS/SETEMBRO\\temp_audio.webm'
